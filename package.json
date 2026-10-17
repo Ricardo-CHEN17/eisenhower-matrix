@@ -1,0 +1,26 @@
+{
+  "name": "eisenhower-matrix",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,web -c blue,green \"npm:dev:server\" \"npm:dev:web\"",
+    "dev:server": "npm run dev -w @eisenhower/server",
+    "dev:web": "npm run dev -w @eisenhower/web",
+    "build": "npm run build -w @eisenhower/web",
+    "start": "npm run start -w @eisenhower/server",
+    "seed": "npm run seed -w @eisenhower/server",
+    "backup": "npm run backup -w @eisenhower/server",
+    "test": "npm run test -w @eisenhower/server && npm run test -w @eisenhower/web",
+    "typecheck": "tsc --noEmit -p packages/shared/tsconfig.json && tsc --noEmit -p apps/server/tsconfig.json && tsc --noEmit -p apps/web/tsconfig.json"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

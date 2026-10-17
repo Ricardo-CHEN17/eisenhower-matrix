@@ -1,0 +1,27 @@
+{
+  "name": "@eisenhower/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "NODE_ENV=production tsx src/index.ts",
+    "seed": "tsx src/seed.ts",
+    "backup": "tsx src/backup.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@eisenhower/shared": "*",
+    "@hono/node-server": "^1.13.7",
+    "better-sqlite3": "^12.2.0",
+    "drizzle-orm": "^0.38.3",
+    "hono": "^4.6.14",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^24.0.0",
+    "tsx": "^4.19.2",
+    "vitest": "^2.1.8"
+  }
+}
