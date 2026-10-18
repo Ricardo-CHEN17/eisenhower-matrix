@@ -244,6 +244,82 @@ button {
   opacity: 0.8;
 }
 
+.quad-select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 26px 0 10px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  font-size: 12px;
+  flex: 0 0 auto;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.quad-select:focus-within,
+.quad-select.active {
+  background: var(--surface-raised);
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.quad-select select {
+  width: 128px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  outline: 0;
+  padding: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.quad-select > svg {
+  position: absolute;
+  right: 9px;
+  pointer-events: none;
+  color: var(--text-muted);
+}
+
+.quad-select-mark {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 10px;
+  border-radius: 3px;
+  background: conic-gradient(
+    var(--q2) 0 25%,
+    var(--q1) 0 50%,
+    var(--q4) 0 75%,
+    var(--q3) 0
+  );
+}
+
+.quad-select.q1 .quad-select-mark {
+  border-radius: 50%;
+  background: var(--q1);
+}
+
+.quad-select.q2 .quad-select-mark {
+  border-radius: 50%;
+  background: var(--q2);
+}
+
+.quad-select.q3 .quad-select-mark {
+  border-radius: 50%;
+  background: var(--q3);
+}
+
+.quad-select.q4 .quad-select-mark {
+  border-radius: 50%;
+  background: var(--q4);
+}
+
 .tabs {
   margin-left: auto;
   display: flex;
@@ -434,6 +510,308 @@ button {
   background: var(--bg);
 }
 
+/* ---------- focused quadrant ---------- */
+.quadrant-focus {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 26px 32px 30px;
+  overflow: hidden;
+  background: radial-gradient(
+      circle at var(--focus-origin, 0 0),
+      var(--q-tint),
+      transparent 58%
+    ),
+    var(--bg);
+}
+
+.quadrant-focus.q1 {
+  --focus-origin: 100% 0;
+}
+
+.quadrant-focus.q2 {
+  --focus-origin: 0 0;
+}
+
+.quadrant-focus.q3 {
+  --focus-origin: 100% 100%;
+}
+
+.quadrant-focus.q4 {
+  --focus-origin: 0 100%;
+}
+
+.qfocus-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 18px;
+  padding: 2px 2px 18px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 18px;
+}
+
+.qfocus-heading {
+  display: flex;
+  gap: 11px;
+  min-width: 0;
+}
+
+.qfocus-accent {
+  flex: 0 0 4px;
+  width: 4px;
+  border-radius: 3px;
+  background: var(--q);
+  box-shadow: 0 0 12px var(--q-glow);
+}
+
+.qfocus-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.qfocus-header h2 {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: -0.01em;
+}
+
+.qfocus-header p {
+  margin: 5px 0 0;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.qfocus-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.qfocus-view-toggle {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--surface-muted);
+}
+
+.qfocus-view-toggle button {
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 10.5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.qfocus-view-toggle button svg {
+  width: 12px;
+  height: 12px;
+}
+
+.qfocus-view-toggle button.active {
+  background: var(--surface-raised);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: 0 1px 3px var(--card-shadow);
+}
+
+.qfocus-map {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.qfocus-map .matrix-wrap {
+  flex: 1;
+  min-height: 0;
+  background: transparent;
+}
+
+.qfocus-overdue {
+  height: 20px;
+}
+
+.qfocus-back {
+  flex: 0 0 auto;
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.qfocus-back:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.qfocus-grid {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+  align-content: start;
+  padding: 2px 2px 10px;
+  scrollbar-width: thin;
+}
+
+.qfocus-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-height: 112px;
+  padding: 12px 13px 11px 16px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--card-bg);
+  box-shadow: 0 2px 6px var(--card-shadow);
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+
+.qfocus-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 9px;
+  bottom: 9px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--q);
+  box-shadow: 0 0 10px var(--q-glow);
+}
+
+.qfocus-card.q1,
+.qfocus-card.q2 {
+  background: linear-gradient(90deg, var(--q-glow), transparent 42%),
+    var(--card-bg);
+}
+
+.qfocus-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: 0 8px 22px var(--card-shadow-hover),
+    0 0 24px var(--q-glow);
+  transform: translateY(-1px);
+}
+
+.qfocus-card.selected {
+  box-shadow: 0 0 0 2px var(--text), 0 8px 22px var(--card-shadow-hover);
+}
+
+.qfocus-card-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.qfocus-card h3 {
+  flex: 1;
+  margin: 0;
+  font-size: 13.2px;
+  line-height: 1.4;
+  font-weight: 600;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.qfocus-card:hover .complete-btn {
+  opacity: 1;
+}
+
+.qfocus-notes {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.qfocus-meta {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.qfocus-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  font-size: 9.5px;
+  white-space: nowrap;
+}
+
+.qfocus-tag i {
+  display: block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.qfocus-score {
+  margin-left: auto;
+  font-size: 9.5px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.78;
+  white-space: nowrap;
+}
+
+.qfocus-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.qfocus-empty strong {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.qfocus-empty span {
+  font-size: 11.5px;
+}
+
 .axis {
   pointer-events: none;
   color: var(--text-muted);
@@ -548,6 +926,47 @@ button {
   box-shadow: 0 18px 48px var(--matrix-shadow);
 }
 
+.matrix.focused {
+  background: radial-gradient(
+      circle at var(--focus-origin, 0 0),
+      var(--q-tint),
+      transparent 58%
+    ),
+    var(--matrix-bg);
+}
+
+.matrix.focused.q1 {
+  --focus-origin: 100% 0;
+}
+
+.matrix.focused.q2 {
+  --focus-origin: 0 0;
+}
+
+.matrix.focused.q3 {
+  --focus-origin: 100% 100%;
+}
+
+.matrix.focused.q4 {
+  --focus-origin: 0 100%;
+}
+
+.matrix.focused::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-image: linear-gradient(
+      to right,
+      var(--border) 1px,
+      transparent 1px
+    ),
+    linear-gradient(to bottom, var(--border) 1px, transparent 1px);
+  background-size: 25% 25%;
+  opacity: 0.14;
+  pointer-events: none;
+}
+
 .quad-bg {
   position: absolute;
   transition: left 0.2s ease, top 0.2s ease, width 0.2s ease,
@@ -595,10 +1014,29 @@ button {
   display: flex;
   gap: 9px;
   padding: 15px 18px;
-  pointer-events: none;
+  pointer-events: auto;
+  cursor: pointer;
+  border-radius: 10px;
   width: 250px;
-  transition: width 0.2s ease;
+  transition: width 0.2s ease, background 0.15s ease;
   overflow: hidden;
+}
+
+.quad-label:hover {
+  background: var(--q-tint);
+}
+
+.quad-expand {
+  font-size: 11px;
+  line-height: 1;
+  color: var(--text-muted);
+  opacity: 0.5;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.quad-label:hover .quad-expand {
+  opacity: 1;
+  transform: translate(1px, -1px);
 }
 
 .quad-label.tl {
@@ -684,22 +1122,32 @@ button {
 
 .q1 {
   --q: var(--q1);
+  --q-tint: var(--q1-tint);
+  --q-glow: var(--q1-glow);
 }
 
 .q2 {
   --q: var(--q2);
+  --q-tint: var(--q2-tint);
+  --q-glow: var(--q2-glow);
 }
 
 .q3 {
   --q: var(--q3);
+  --q-tint: var(--q3-tint);
+  --q-glow: var(--q3-glow);
 }
 
 .q4 {
   --q: var(--q4);
+  --q-tint: var(--q4-tint);
+  --q-glow: var(--q4-glow);
 }
 
 .pending {
   --q: var(--text-muted);
+  --q-tint: var(--surface-muted);
+  --q-glow: transparent;
 }
 
 .leaders {
@@ -1953,6 +2401,12 @@ textarea {
   }
 }
 
+@media (max-width: 1080px) {
+  .quad-select {
+    display: none;
+  }
+}
+
 @media (max-width: 1040px) {
   .workspace,
   .workspace.has-drawer {
@@ -2036,6 +2490,23 @@ textarea {
 
   .matrix-wrap {
     padding: 36px 18px 44px 42px;
+  }
+
+  .quadrant-focus {
+    padding: 18px 14px 22px;
+  }
+
+  .qfocus-header {
+    padding-bottom: 14px;
+    margin-bottom: 14px;
+  }
+
+  .qfocus-header h2 {
+    font-size: 17px;
+  }
+
+  .qfocus-grid {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   }
 
   .axis-x {

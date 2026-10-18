@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Task } from "@eisenhower/shared";
-import { layoutMatrix } from "./layout";
+import { layoutMatrix, layoutQuadrant } from "./layout";
 
 function task(
   id: string,
@@ -121,6 +121,79 @@ describe("layoutMatrix", () => {
         task("c", 85, 30),
         task("d", 80, 25),
         task("e", 70, 15)
+      ]
+    });
+
+    for (let i = 0; i < layout.cards.length; i++) {
+      for (let j = i + 1; j < layout.cards.length; j++) {
+        expect(overlaps(layout.cards[i]!, layout.cards[j]!)).toBe(false);
+      }
+    }
+  });
+});
+
+describe("layoutQuadrant", () => {
+  const base = {
+    width: 900,
+    height: 600,
+    threshold: 50,
+    selectedId: null
+  };
+
+  it("renders every task as a card and counts only the focused quadrant", () => {
+    const layout = layoutQuadrant({
+      ...base,
+      quadrant: 1,
+      tasks: [task("a", 90, 80), task("b", 60, 55)]
+    });
+
+    expect(layout.counts).toEqual({ 1: 2, 2: 0, 3: 0, 4: 0, pending: 0 });
+    expect(layout.cards).toHaveLength(2);
+    expect(layout.dots).toHaveLength(0);
+    expect(layout.clusters).toHaveLength(0);
+  });
+
+  it("maps the quadrant score range onto the whole canvas", () => {
+    const layout = layoutQuadrant({
+      ...base,
+      quadrant: 1,
+      tasks: [task("low", 50, 50), task("high", 100, 100)]
+    });
+
+    const low = layout.cards.find((card) => card.task.id === "low")!;
+    const high = layout.cards.find((card) => card.task.id === "high")!;
+
+    expect(low.anchor.x).toBeGreaterThan(0);
+    expect(low.anchor.x).toBeLessThan(high.anchor.x);
+    expect(low.anchor.y).toBeGreaterThan(high.anchor.y);
+    expect(high.anchor.x).toBeLessThan(base.width);
+    expect(high.anchor.y).toBeGreaterThan(0);
+  });
+
+  it("maps quadrant 4 scores from bottom-left to top-right", () => {
+    const layout = layoutQuadrant({
+      ...base,
+      quadrant: 4,
+      tasks: [task("bottom", 0, 0), task("top", 49, 49)]
+    });
+
+    const bottom = layout.cards.find((card) => card.task.id === "bottom")!;
+    const top = layout.cards.find((card) => card.task.id === "top")!;
+
+    expect(bottom.anchor.x).toBeLessThan(top.anchor.x);
+    expect(bottom.anchor.y).toBeGreaterThan(top.anchor.y);
+  });
+
+  it("avoids card overlaps when there is room", () => {
+    const layout = layoutQuadrant({
+      ...base,
+      quadrant: 2,
+      tasks: [
+        task("a", 95, 45),
+        task("b", 90, 40),
+        task("c", 80, 30),
+        task("d", 70, 20),
+        task("e", 60, 10)
       ]
     });
 

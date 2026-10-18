@@ -1,6 +1,7 @@
 import {
   dueState,
   quadrantOf,
+  type KnownQuadrant,
   type Quadrant,
   type Task
 } from "@eisenhower/shared";
@@ -76,6 +77,21 @@ export interface LayoutInput {
   selectedId: string | null;
   forceIndividual: boolean;
   today?: Date;
+}
+
+export interface QuadrantBounds {
+  importanceMin: number;
+  importanceMax: number;
+  urgencyMin: number;
+  urgencyMax: number;
+}
+
+export interface QuadrantLayoutInput {
+  tasks: Task[];
+  quadrant: KnownQuadrant;
+  threshold: number;
+  width: number;
+  height: number;
 }
 
 const PAD = 14;
@@ -630,3 +646,123 @@ export function layoutMatrix(input: LayoutInput): MatrixLayout {
 
   return { cards, dots, clusters, leaders, counts };
 }
+
+export function quadrantBounds(
+  quadrant: KnownQuadrant,
+  threshold: number
+): QuadrantBounds {
+  switch (quadrant) {
+    case 1:
+      return {
+        importanceMin: threshold,
+        importanceMax: 100,
+        urgencyMin: threshold,
+        urgencyMax: 100
+      };
+    case 2:
+      return {
+        importanceMin: threshold,
+        importanceMax: 100,
+        urgencyMin: 0,
+        urgencyMax: threshold
+      };
+    case 3:
+      return {
+        importanceMin: 0,
+        importanceMax: threshold,
+        urgencyMin: threshold,
+        urgencyMax: 100
+      };
+    case 4:
+      return {
+        importanceMin: 0,
+        importanceMax: threshold,
+        urgencyMin: 0,
+        urgencyMax: threshold
+      };
+  }
+}
+
+/**
+ * Lay out the tasks of a single quadrant across the full canvas, mapping the
+ * quadrant's score range onto the available width and height.
+ */
+export function layoutQuadrant(input: QuadrantLayoutInput): MatrixLayout {
+  const { tasks, quadrant, threshold, width, height } = input;
+  const counts: MatrixCounts = { 1: 0, 2: 0, 3: 0, 4: 0, pending: 0 };
+  counts[quadrant] = tasks.length;
+
+  if (width < 40 || height < 40) {
+    return { cards: [], dots: [], clusters: [], leaders: [], counts };
+  }
+
+  const bounds = quadrantBounds(quadrant, threshold);
+  const importanceSpan = Math.max(
+    1,
+    bounds.importanceMax - bounds.importanceMin
+  );
+  const urgencySpan = Math.max(1, bounds.urgencyMax - bounds.urgencyMin);
+
+  const scoreToQuadrantPoint = (
+    task: Pick<Task, "importance" | "urgency">
+  ): Point => {
+    const importanceRatio =
+      (task.importance - bounds.importanceMin) / importanceSpan;
+    const urgencyRatio = (task.urgency - bounds.urgencyMin) / urgencySpan;
+    return {
+      x: PAD + urgencyRatio * (width - PAD * 2),
+      y: PAD + (1 - importanceRatio) * (height - PAD * 2)
+    };
+  };
+
+  const sorted = [...tasks].sort(
+    (a, b) =>
+      b.importance - a.importance ||
+      b.urgency - a.urgency ||
+      a.id.localeCompare(b.id)
+  );
+
+  const placedRects: Rect[] = [];
+  const cards: CardLayout[] = [];
+  const leaders: LeaderLayout[] = [];
+
+  for (const task of sorted) {
+    const tier = tierFor(task);
+    const size = cardSize(width, tier);
+    const anchor = scoreToQuadrantPoint(task);
+    const placement = findPlacement(
+      anchor,
+      size,
+      placedRects,
+      width,
+      height,
+      null,
+      threshold
+    );
+    const rect =
+      placement?.rect ??
+      clampRect(rectFromCenter(anchor, size), width, height);
+
+    placedRects.push(rect);
+
+    const center = {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2
+    };
+    if (Math.hypot(center.x - anchor.x, center.y - anchor.y) > 6) {
+      leaders.push({ from: anchor, to: center, quadrant });
+    }
+
+    cards.push({
+      task,
+      rect,
+      tier,
+      kind: quadrant === 1 || quadrant === 2 ? "important" : "unimportant",
+      quadrant,
+      anchor
+    });
+  }
+
+  return { cards, dots: [], clusters: [], leaders, counts };
+}
+

@@ -12,10 +12,13 @@ import {
   clampScore,
   dueLabel,
   dueState,
+  type KnownQuadrant,
   type Task
 } from "@eisenhower/shared";
 import {
   layoutMatrix,
+  layoutQuadrant,
+  quadrantBounds,
   type CardLayout,
   type ClusterLayout,
   type MatrixLayout
@@ -26,9 +29,11 @@ interface MatrixProps {
   threshold: number;
   selectedId: string | null;
   forceIndividual: boolean;
+  focusQuadrant?: KnownQuadrant | null;
   onSelect: (task: Task) => void;
   onComplete: (task: Task) => void;
   onNudge: (task: Task, patch: { importance?: number; urgency?: number }) => void;
+  onFocusQuadrant: (quadrant: KnownQuadrant) => void;
   emptyMessage: string;
   emptyHint: string;
 }
@@ -55,9 +60,11 @@ export function Matrix({
   threshold,
   selectedId,
   forceIndividual,
+  focusQuadrant = null,
   onSelect,
   onComplete,
   onNudge,
+  onFocusQuadrant,
   emptyMessage,
   emptyHint
 }: MatrixProps) {
@@ -81,18 +88,35 @@ export function Matrix({
     return () => observer.disconnect();
   }, []);
 
-  const layout = useMemo<MatrixLayout>(
-    () =>
-      layoutMatrix({
+  const focused = focusQuadrant ?? null;
+
+  const layout = useMemo<MatrixLayout>(() => {
+    if (focused !== null) {
+      return layoutQuadrant({
         tasks,
+        quadrant: focused,
         threshold,
         width: size.width,
-        height: size.height,
-        selectedId,
-        forceIndividual
-      }),
-    [tasks, threshold, size.width, size.height, selectedId, forceIndividual]
-  );
+        height: size.height
+      });
+    }
+    return layoutMatrix({
+      tasks,
+      threshold,
+      width: size.width,
+      height: size.height,
+      selectedId,
+      forceIndividual
+    });
+  }, [
+    tasks,
+    threshold,
+    size.width,
+    size.height,
+    selectedId,
+    forceIndividual,
+    focused
+  ]);
 
   const narrow = size.width < 960;
 
@@ -133,6 +157,22 @@ export function Matrix({
   const rightPct = `${100 - threshold}%`;
   const topPct = `${100 - threshold}%`;
   const bottomPct = `${threshold}%`;
+
+  const bounds = focused === null ? null : quadrantBounds(focused, threshold);
+  const yTicks = bounds
+    ? [
+        bounds.importanceMax,
+        Math.round((bounds.importanceMin + bounds.importanceMax) / 2),
+        bounds.importanceMin
+      ]
+    : [100, 50, 0];
+  const xTicks = bounds
+    ? [
+        bounds.urgencyMin,
+        Math.round((bounds.urgencyMin + bounds.urgencyMax) / 2),
+        bounds.urgencyMax
+      ]
+    : [0, 50, 100];
 
   function showTaskHover(event: ReactMouseEvent, task: Task) {
     setHover({
@@ -205,81 +245,108 @@ export function Matrix({
       <div className="axis axis-y" aria-hidden="true">
         <span className="arrow">↑</span>
         <span className="axis-title">Importance</span>
-        <span className="tick top">100</span>
-        <span className="tick mid">50</span>
-        <span className="tick bottom">0</span>
+        <span className="tick top">{yTicks[0]}</span>
+        <span className="tick mid">{yTicks[1]}</span>
+        <span className="tick bottom">{yTicks[2]}</span>
       </div>
 
       <div
-        className={`matrix${narrow ? " narrow" : ""}`}
+        className={`matrix${narrow ? " narrow" : ""}${
+          focused === null ? "" : ` focused q${focused}`
+        }`}
         ref={matrixRef}
-        aria-label="Eisenhower matrix"
+        aria-label={
+          focused === null
+            ? "Eisenhower matrix"
+            : `${QUADRANTS[focused].name} quadrant map`
+        }
       >
-        <div
-          className="quad-bg q1-bg"
-          style={{
-            left: leftPct,
-            top: 0,
-            width: rightPct,
-            height: topPct
-          }}
-        />
-        <div
-          className="quad-bg q2-bg"
-          style={{
-            left: 0,
-            top: 0,
-            width: leftPct,
-            height: topPct
-          }}
-        />
-        <div
-          className="quad-bg q3-bg"
-          style={{
-            left: leftPct,
-            top: topPct,
-            width: rightPct,
-            height: bottomPct
-          }}
-        />
-        <div
-          className="quad-bg q4-bg"
-          style={{
-            left: 0,
-            top: topPct,
-            width: leftPct,
-            height: bottomPct
-          }}
-        />
-
-        <div className="crosshair v" style={{ left: leftPct }} />
-        <div className="crosshair h" style={{ top: topPct }} />
-
-        {QUAD_ORDER.map(({ quadrant, position }) => {
-          const meta = QUADRANTS[quadrant];
-          const width =
-            position === "tl" || position === "bl"
-              ? leftLabelWidth
-              : rightLabelWidth;
-          return (
+        {focused === null && (
+          <>
             <div
-              key={quadrant}
-              className={`quad-label ${position} q${quadrant}${
-                width < 196 ? " compact" : ""
-              }`}
-              style={{ width }}
-            >
-              <span className="quad-accent" />
-              <div className="quad-copy">
-                <div className="quad-title-row">
-                  <h2>{meta.name}</h2>
-                  <span className="quad-count">{layout.counts[quadrant]}</span>
+              className="quad-bg q1-bg"
+              style={{
+                left: leftPct,
+                top: 0,
+                width: rightPct,
+                height: topPct
+              }}
+            />
+            <div
+              className="quad-bg q2-bg"
+              style={{
+                left: 0,
+                top: 0,
+                width: leftPct,
+                height: topPct
+              }}
+            />
+            <div
+              className="quad-bg q3-bg"
+              style={{
+                left: leftPct,
+                top: topPct,
+                width: rightPct,
+                height: bottomPct
+              }}
+            />
+            <div
+              className="quad-bg q4-bg"
+              style={{
+                left: 0,
+                top: topPct,
+                width: leftPct,
+                height: bottomPct
+              }}
+            />
+
+            <div className="crosshair v" style={{ left: leftPct }} />
+            <div className="crosshair h" style={{ top: topPct }} />
+
+            {QUAD_ORDER.map(({ quadrant, position }) => {
+              const meta = QUADRANTS[quadrant];
+              const width =
+                position === "tl" || position === "bl"
+                  ? leftLabelWidth
+                  : rightLabelWidth;
+              return (
+                <div
+                  key={quadrant}
+                  className={`quad-label ${position} q${quadrant}${
+                    width < 196 ? " compact" : ""
+                  }`}
+                  style={{ width }}
+                  role="button"
+                  tabIndex={0}
+                  title={`Open ${meta.name}`}
+                  aria-label={`Open ${meta.name}, ${layout.counts[quadrant]} tasks`}
+                  onClick={() => onFocusQuadrant(quadrant)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onFocusQuadrant(quadrant);
+                    }
+                  }}
+                >
+                  <span className="quad-accent" />
+                  <div className="quad-copy">
+                    <div className="quad-title-row">
+                      <h2>{meta.name}</h2>
+                      <span className="quad-count">
+                        {layout.counts[quadrant]}
+                      </span>
+                      <span className="quad-expand" aria-hidden="true">
+                        ↗
+                      </span>
+                    </div>
+                    <p>{meta.hint}</p>
+                  </div>
                 </div>
-                <p>{meta.hint}</p>
-              </div>
-            </div>
-          );
-        })}
+              );
+            })}
+          </>
+        )}
 
         <svg
           className="leaders"
@@ -396,9 +463,9 @@ export function Matrix({
 
       <div className="axis axis-x" aria-hidden="true">
         <div className="ticks">
-          <span className="tick left">0</span>
-          <span className="tick mid">50</span>
-          <span className="tick right">100</span>
+          <span className="tick left">{xTicks[0]}</span>
+          <span className="tick mid">{xTicks[1]}</span>
+          <span className="tick right">{xTicks[2]}</span>
         </div>
         <span className="axis-title">Urgency →</span>
       </div>

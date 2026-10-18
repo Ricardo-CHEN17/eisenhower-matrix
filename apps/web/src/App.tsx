@@ -6,7 +6,9 @@ import {
 } from "react";
 import {
   DEFAULT_SETTINGS,
+  QUADRANTS,
   quadrantOf,
+  type KnownQuadrant,
   type Settings,
   type Tag,
   type Task,
@@ -18,6 +20,8 @@ import {
   ConfirmDialog,
   SettingsDialog
 } from "./components/Modals";
+import { QuadrantFocus } from "./components/QuadrantFocus";
+import type { QuadrantViewMode } from "./components/QuadrantFocus";
 import { TaskDrawer } from "./components/TaskDrawer";
 import { TaskLists } from "./components/TaskLists";
 import {
@@ -40,6 +44,16 @@ interface ToastState {
 
 export default function App() {
   const [view, setView] = useState<TaskView>("active");
+  const [focusQuadrant, setFocusQuadrant] = useState<KnownQuadrant | null>(null);
+  const [focusMode, setFocusMode] = useState<QuadrantViewMode>(() => {
+    try {
+      return window.localStorage.getItem("eisenhower.focusMode") === "map"
+        ? "map"
+        : "list";
+    } catch {
+      return "list";
+    }
+  });
   const [search, setSearch] = useState("");
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -116,6 +130,26 @@ export default function App() {
     [filteredTasks, settings.threshold, view]
   );
 
+  const quadrantCounts = useMemo(() => {
+    const counts: Record<KnownQuadrant, number> = { 1: 0, 2: 0, 3: 0, 4: 0 };
+    if (view !== "active") return counts;
+    for (const task of filteredTasks) {
+      const quadrant = quadrantOf(task, settings.threshold);
+      if (quadrant !== "pending") counts[quadrant]++;
+    }
+    return counts;
+  }, [filteredTasks, settings.threshold, view]);
+
+  const focusTasks = useMemo(
+    () =>
+      focusQuadrant === null
+        ? []
+        : filteredTasks.filter(
+            (task) => quadrantOf(task, settings.threshold) === focusQuadrant
+          ),
+    [filteredTasks, focusQuadrant, settings.threshold]
+  );
+
   const selectedTask =
     view === "active"
       ? activeQuery.data?.find((task) => task.id === selectedId) ?? null
@@ -139,6 +173,12 @@ export default function App() {
         target.matches("input, textarea, select, [contenteditable='true']");
 
       if (event.key === "Escape") {
+        if (
+          !document.querySelector(".modal-backdrop") &&
+          !document.querySelector(".drawer")
+        ) {
+          setFocusQuadrant(null);
+        }
         setAddOpen(false);
         setSettingsOpen(false);
         setDeleteTarget(null);
@@ -190,7 +230,22 @@ export default function App() {
 
   function changeView(next: TaskView) {
     setView(next);
+    setFocusQuadrant(null);
     setSelectedId(null);
+  }
+
+  function changeFocus(next: KnownQuadrant | null) {
+    setFocusQuadrant(next);
+    setSelectedId(null);
+  }
+
+  function changeFocusMode(next: QuadrantViewMode) {
+    setFocusMode(next);
+    try {
+      window.localStorage.setItem("eisenhower.focusMode", next);
+    } catch {
+      // Ignore storage failures (private mode, quota, etc.).
+    }
   }
 
   function pushError(error: unknown) {
@@ -331,6 +386,7 @@ export default function App() {
       dueDate: input.dueDate
     });
     setView("active");
+    setFocusQuadrant(null);
     setSearch("");
     setSelectedTagIds([]);
     setSelectedId(task.id);
@@ -447,6 +503,47 @@ export default function App() {
           </button>
         </div>
 
+        {view === "active" && (
+          <label
+            className={`quad-select${focusQuadrant ? ` active q${focusQuadrant}` : ""}`}
+            title="Focus a quadrant"
+          >
+            <span className="quad-select-mark" aria-hidden="true" />
+            <select
+              aria-label="Focus quadrant"
+              value={focusQuadrant === null ? "" : String(focusQuadrant)}
+              onChange={(event) => {
+                const value = event.target.value;
+                changeFocus(
+                  value === "" ? null : (Number(value) as KnownQuadrant)
+                );
+              }}
+            >
+              <option value="">All quadrants</option>
+              {([1, 2, 3, 4] as const).map((quadrant) => (
+                <option key={quadrant} value={quadrant}>
+                  {QUADRANTS[quadrant].name} · {quadrantCounts[quadrant]}
+                </option>
+              ))}
+            </select>
+            <svg
+              viewBox="0 0 16 16"
+              width="12"
+              height="12"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              aria-hidden="true"
+            >
+              <path
+                d="m4 6 4 4 4-4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </label>
+        )}
+
         <button className="add-btn" onClick={() => setAddOpen(true)}>
           + Add task
         </button>
@@ -514,17 +611,34 @@ export default function App() {
         className={`workspace${selectedTask ? " has-drawer" : ""}`}
       >
         {view === "active" ? (
-          <Matrix
-            tasks={filteredTasks}
-            threshold={settings.threshold}
-            selectedId={selectedId}
-            forceIndividual={isFiltering}
-            onSelect={handleSelect}
-            onComplete={handleComplete}
-            onNudge={handleNudge}
-            emptyMessage={emptyMessage}
-            emptyHint={emptyHint}
-          />
+          focusQuadrant === null ? (
+            <Matrix
+              tasks={filteredTasks}
+              threshold={settings.threshold}
+              selectedId={selectedId}
+              forceIndividual={isFiltering}
+              onSelect={handleSelect}
+              onComplete={handleComplete}
+              onNudge={handleNudge}
+              onFocusQuadrant={changeFocus}
+              emptyMessage={emptyMessage}
+              emptyHint={emptyHint}
+            />
+          ) : (
+            <QuadrantFocus
+              quadrant={focusQuadrant}
+              tasks={focusTasks}
+              threshold={settings.threshold}
+              selectedId={selectedId}
+              isFiltering={isFiltering}
+              mode={focusMode}
+              onModeChange={changeFocusMode}
+              onSelect={handleSelect}
+              onComplete={handleComplete}
+              onNudge={handleNudge}
+              onExit={() => changeFocus(null)}
+            />
+          )
         ) : (
           <TaskLists
             view={view}

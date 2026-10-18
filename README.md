@@ -12,6 +12,7 @@ The app is a single-user local full stack: React + Vite in the browser, Hono + S
 - **Scores**: integers 0–100. Decimals are rounded and values are clamped on both the client and the server.
 - **Threshold**: adjustable from 30 to 70, default 50.
 - **Organization**: due dates with overdue/today/soon states, tags, title/notes search, tag filtering (OR).
+- **Quadrant focus**: pick a quadrant from the top bar, or click its label on the matrix, to see all of its tasks with a List/Map toggle. Map keeps the spatial importance/urgency layout.
 - **Views**: In progress matrix; Completed and Archived lists.
 - **Undo**: completing or archiving a task shows a 5-second undo toast.
 - **Keyboard**: `n` adds a task, `/` focuses search, `Esc` closes overlays, arrow keys nudge a focused card/dot (Shift for ±10).
