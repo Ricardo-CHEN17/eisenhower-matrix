@@ -9,6 +9,7 @@ import {
   type Task
 } from "@eisenhower/shared";
 import type { UpdateTaskInput } from "../api";
+import { DateInput } from "./DateInput";
 
 interface TaskDrawerProps {
   task: Task;
@@ -278,14 +279,10 @@ export function TaskDrawer({
 
       <div className="detail-section">
         <label htmlFor="drawer-due">Due date</label>
-        <input
+        <DateInput
           id="drawer-due"
-          className="date-input"
-          type="date"
-          value={task.dueDate ?? ""}
-          onChange={(event) =>
-            queue({ dueDate: event.target.value || null }, true)
-          }
+          value={task.dueDate}
+          onChange={(dueDate) => queue({ dueDate }, true)}
         />
       </div>
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Settings, Tag, Theme } from "@eisenhower/shared";
+import { DateInput } from "./DateInput";
 
 interface AddTaskModalProps {
   onClose: () => void;
@@ -73,12 +74,10 @@ export function AddTaskModal({ onClose, onCreate }: AddTaskModalProps) {
 
         <div className="field">
           <label htmlFor="add-due">Due date</label>
-          <input
+          <DateInput
             id="add-due"
-            className="date-input"
-            type="date"
             value={dueDate}
-            onChange={(event) => setDueDate(event.target.value)}
+            onChange={(next) => setDueDate(next ?? "")}
           />
         </div>
 

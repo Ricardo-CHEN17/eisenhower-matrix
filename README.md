@@ -28,11 +28,18 @@ The app is a single-user local full stack: React + Vite in the browser, Hono + S
 
 ```bash
 npm install
-npm run seed     # optional demo tasks; skipped if active tasks already exist
 npm run dev
 ```
 
-Open http://localhost:5173.
+Open http://localhost:5173. The app starts with an empty database.
+
+Optional demo data:
+
+```bash
+npm run seed
+```
+
+The seed command is never run automatically and is skipped if active tasks already exist.
 
 - Web dev server: `http://localhost:5173` (Vite proxies `/api` to `http://127.0.0.1:3001`)
 - API: `http://127.0.0.1:3001`
@@ -45,6 +52,21 @@ npm start
 ```
 
 Open http://127.0.0.1:3001. The Hono server serves the built frontend and the API from the same origin.
+
+## macOS launcher
+
+Create double-clickable apps in `~/Applications`, so you never need a terminal or VS Code to use the app:
+
+```bash
+npm run app:install
+```
+
+- **Eisenhower Matrix** — starts the production server in the background if it is not already running, then opens http://127.0.0.1:3001. Clicking it again simply opens the page.
+- **Eisenhower Matrix Stop** — stops the background server.
+
+Drag **Eisenhower Matrix** from `~/Applications` to the Dock. The first launch may take a few seconds while the web app is built. Logs are written to `data/server.log`.
+
+To stop it from a terminal instead: `npm run app:stop`.
 
 ## Data
 
@@ -69,6 +91,9 @@ Stop the app before replacing the database file.
 | `npm run dev` | Start API and Vite dev server |
 | `npm run build` | Build the web app |
 | `npm start` | Serve the built app + API on port 3001 |
+| `npm run open` | Start the server if needed and open the app |
+| `npm run app:install` | Create the macOS launcher apps in `~/Applications` |
+| `npm run app:stop` | Stop the background server |
 | `npm run seed` | Insert demo tasks/tags if the active list is empty |
 | `npm run backup` | Create a timestamped SQLite backup |
 | `npm run typecheck` | TypeScript checks for shared, server, and web |

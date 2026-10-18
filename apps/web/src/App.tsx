@@ -474,21 +474,29 @@ export default function App() {
       </header>
 
       <div className="filterbar">
-        <span className="filter-label">Tags</span>
-        {tags.map((tag) => {
-          const active = selectedTagIds.includes(tag.id);
-          return (
-            <button
-              key={tag.id}
-              className={`tag-chip${active ? " active" : ""}`}
-              onClick={() => handleToggleTag(tag.id)}
-              aria-pressed={active}
-            >
-              <i style={{ background: tag.color }} />
-              {tag.name}
-            </button>
-          );
-        })}
+        {tags.length > 0 ? (
+          <>
+            <span className="filter-label">Tags</span>
+            {tags.map((tag) => {
+              const active = selectedTagIds.includes(tag.id);
+              return (
+                <button
+                  key={tag.id}
+                  className={`tag-chip${active ? " active" : ""}`}
+                  onClick={() => handleToggleTag(tag.id)}
+                  aria-pressed={active}
+                >
+                  <i style={{ background: tag.color }} />
+                  {tag.name}
+                </button>
+              );
+            })}
+          </>
+        ) : (
+          <span className="filter-empty">
+            No tags yet — add them from a task.
+          </span>
+        )}
         {pendingCount > 0 && (
           <span className="pending-pill">
             Pending review {pendingCount}
