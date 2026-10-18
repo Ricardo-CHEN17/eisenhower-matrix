@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   DEFAULT_SETTINGS,
+  type CreateCalendarSubscriptionInput,
+  type ImportCalendarInput,
   type Settings,
   type Tag,
   type Task,
@@ -19,6 +21,11 @@ export const tagKeys = {
 
 export const settingsKey = ["settings"] as const;
 
+export const calendarKeys = {
+  all: ["calendars"] as const,
+  events: ["calendar-events"] as const
+};
+
 function applyTaskPatch(task: Task, patch: UpdateTaskInput, tags: Tag[]): Task {
   const next: Task = { ...task, tags: [...task.tags] };
 
@@ -27,6 +34,12 @@ function applyTaskPatch(task: Task, patch: UpdateTaskInput, tags: Tag[]): Task {
   if (patch.importance !== undefined) next.importance = patch.importance;
   if (patch.urgency !== undefined) next.urgency = patch.urgency;
   if (patch.dueDate !== undefined) next.dueDate = patch.dueDate;
+  if (patch.scheduledStart !== undefined) {
+    next.scheduledStart = patch.scheduledStart;
+  }
+  if (patch.scheduledEnd !== undefined) {
+    next.scheduledEnd = patch.scheduledEnd;
+  }
 
   if (patch.tagIds !== undefined) {
     next.tags = patch.tagIds
@@ -198,5 +211,73 @@ export function useUpdateSettings() {
     onSuccess: (settings) => {
       queryClient.setQueryData(settingsKey, settings);
     }
+  });
+}
+
+export function useCalendars() {
+  return useQuery({
+    queryKey: calendarKeys.all,
+    queryFn: api.listCalendars
+  });
+}
+
+export function useCalendarEvents(start: string | null, end: string | null) {
+  return useQuery({
+    queryKey: [...calendarKeys.events, start ?? "", end ?? ""],
+    queryFn: () => api.listCalendarEvents(start!, end!),
+    enabled: Boolean(start && end)
+  });
+}
+
+function invalidateCalendars(
+  queryClient: ReturnType<typeof useQueryClient>
+): void {
+  void queryClient.invalidateQueries({ queryKey: calendarKeys.all });
+  void queryClient.invalidateQueries({ queryKey: calendarKeys.events });
+}
+
+export function useCreateCalendar() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: CreateCalendarSubscriptionInput) =>
+      api.createCalendar(input),
+    onSuccess: () => invalidateCalendars(queryClient)
+  });
+}
+
+export function useImportCalendar() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: ImportCalendarInput) => api.importCalendar(input),
+    onSuccess: () => invalidateCalendars(queryClient)
+  });
+}
+
+export function useDeleteCalendar() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => api.deleteCalendar(id),
+    onSuccess: () => invalidateCalendars(queryClient)
+  });
+}
+
+export function useRefreshCalendar() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => api.refreshCalendar(id),
+    onSuccess: () => invalidateCalendars(queryClient)
+  });
+}
+
+export function useRefreshAllCalendars() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => api.refreshAllCalendars(),
+    onSuccess: () => invalidateCalendars(queryClient)
   });
 }

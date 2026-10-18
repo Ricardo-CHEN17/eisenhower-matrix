@@ -20,6 +20,7 @@ import {
   ConfirmDialog,
   SettingsDialog
 } from "./components/Modals";
+import { CalendarView } from "./components/CalendarView";
 import { QuadrantFocus } from "./components/QuadrantFocus";
 import type { QuadrantViewMode } from "./components/QuadrantFocus";
 import { TaskDrawer } from "./components/TaskDrawer";
@@ -29,6 +30,7 @@ import {
   useCreateTask,
   useDeleteTag,
   useDeleteTask,
+  useCalendarEvents,
   useSettings,
   useTags,
   useTaskPreview,
@@ -36,14 +38,17 @@ import {
   useUpdateSettings,
   useUpdateTask
 } from "./hooks";
+import { localDayRange, overlaps } from "./lib/calendar";
 
 interface ToastState {
   message: string;
   undo?: () => void;
 }
 
+type AppView = TaskView | "calendar";
+
 export default function App() {
-  const [view, setView] = useState<TaskView>("active");
+  const [view, setView] = useState<AppView>("active");
   const [focusQuadrant, setFocusQuadrant] = useState<KnownQuadrant | null>(null);
   const [focusMode, setFocusMode] = useState<QuadrantViewMode>(() => {
     try {
@@ -83,7 +88,7 @@ export default function App() {
   const tags = tagsQuery.data ?? [];
 
   const tasks =
-    view === "active"
+    view === "active" || view === "calendar"
       ? activeQuery.data ?? []
       : view === "completed"
         ? completedQuery.data ?? []
@@ -151,9 +156,45 @@ export default function App() {
   );
 
   const selectedTask =
-    view === "active"
+    view === "active" || view === "calendar"
       ? activeQuery.data?.find((task) => task.id === selectedId) ?? null
       : null;
+
+  const conflictRange = selectedTask?.scheduledStart
+    ? localDayRange(selectedTask.scheduledStart)
+    : null;
+  const conflictEventsQuery = useCalendarEvents(
+    conflictRange?.start ?? null,
+    conflictRange?.end ?? null
+  );
+
+  const conflictTitles = useMemo(() => {
+    if (!selectedTask?.scheduledStart || !selectedTask.scheduledEnd) return [];
+    const start = selectedTask.scheduledStart;
+    const end = selectedTask.scheduledEnd;
+    const titles = new Set<string>();
+
+    for (const event of conflictEventsQuery.data ?? []) {
+      if (event.allDay) continue;
+      if (overlaps(event.start, event.end, start, end)) {
+        titles.add(event.title);
+      }
+    }
+    for (const task of activeQuery.data ?? []) {
+      if (
+        task.id === selectedTask.id ||
+        !task.scheduledStart ||
+        !task.scheduledEnd
+      ) {
+        continue;
+      }
+      if (overlaps(task.scheduledStart, task.scheduledEnd, start, end)) {
+        titles.add(task.title);
+      }
+    }
+
+    return [...titles].slice(0, 5);
+  }, [selectedTask, conflictEventsQuery.data, activeQuery.data]);
 
   useEffect(() => {
     document.body.dataset.theme = settings.theme;
@@ -228,7 +269,7 @@ export default function App() {
     action?.();
   }
 
-  function changeView(next: TaskView) {
+  function changeView(next: AppView) {
     setView(next);
     setFocusQuadrant(null);
     setSelectedId(null);
@@ -416,7 +457,7 @@ export default function App() {
   }
 
   const loading =
-    view === "active"
+    view === "active" || view === "calendar"
       ? activeQuery.isLoading
       : view === "completed"
         ? completedQuery.isLoading
@@ -484,6 +525,14 @@ export default function App() {
             onClick={() => changeView("active")}
           >
             In progress <span className="count">{counts.active}</span>
+          </button>
+          <button
+            className={`tab${view === "calendar" ? " active" : ""}`}
+            role="tab"
+            aria-selected={view === "calendar"}
+            onClick={() => changeView("calendar")}
+          >
+            Calendar
           </button>
           <button
             className={`tab${view === "completed" ? " active" : ""}`}
@@ -639,6 +688,14 @@ export default function App() {
               onExit={() => changeFocus(null)}
             />
           )
+        ) : view === "calendar" ? (
+          <CalendarView
+            tasks={filteredTasks}
+            threshold={settings.threshold}
+            selectedId={selectedId}
+            onSelect={handleSelect}
+            onError={pushError}
+          />
         ) : (
           <TaskLists
             view={view}
@@ -660,6 +717,7 @@ export default function App() {
               task={selectedTask}
               tags={tags}
               threshold={settings.threshold}
+              conflicts={conflictTitles}
               onClose={() => setSelectedId(null)}
               onPreview={(patch) => handlePreview(selectedTask.id, patch)}
               onSave={(patch) => handleSave(selectedTask.id, patch)}

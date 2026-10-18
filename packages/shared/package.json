@@ -8,5 +8,8 @@
   },
   "scripts": {
     "test": "vitest run"
+  },
+  "dependencies": {
+    "ical.js": "^2.2.1"
   }
 }

@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export * from "./calendar";
+
 export const TASK_STATUSES = ["active", "completed"] as const;
 export type TaskStatus = (typeof TASK_STATUSES)[number];
 
@@ -28,6 +30,8 @@ export interface Task {
   importance: number;
   urgency: number;
   dueDate: string | null;
+  scheduledStart: string | null;
+  scheduledEnd: string | null;
   status: TaskStatus;
   completedAt: string | null;
   archivedAt: string | null;
@@ -94,29 +98,57 @@ export const dateSchema = z
     return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
   }, "Invalid date");
 
+export const dateTimeSchema = z.string().datetime();
+
+function validSchedule(input: {
+  scheduledStart?: string | null;
+  scheduledEnd?: string | null;
+}): boolean {
+  if (
+    input.scheduledStart === undefined ||
+    input.scheduledEnd === undefined ||
+    input.scheduledStart === null ||
+    input.scheduledEnd === null
+  ) {
+    return true;
+  }
+  return (
+    new Date(input.scheduledEnd).getTime() >
+    new Date(input.scheduledStart).getTime()
+  );
+}
+
 export const scoreSchema = z.number().finite().transform(clampScore);
 
 export const tagIdsSchema = z.array(z.string().min(1)).max(50);
 
-export const createTaskSchema = z.object({
-  title: z.string().trim().min(1).max(200),
-  notes: z.string().max(5000).optional(),
-  importance: scoreSchema.optional(),
-  urgency: scoreSchema.optional(),
-  dueDate: dateSchema.nullable().optional(),
-  tagIds: tagIdsSchema.optional()
-});
+export const createTaskSchema = z
+  .object({
+    title: z.string().trim().min(1).max(200),
+    notes: z.string().max(5000).optional(),
+    importance: scoreSchema.optional(),
+    urgency: scoreSchema.optional(),
+    dueDate: dateSchema.nullable().optional(),
+    scheduledStart: dateTimeSchema.nullable().optional(),
+    scheduledEnd: dateTimeSchema.nullable().optional(),
+    tagIds: tagIdsSchema.optional()
+  })
+  .refine(validSchedule, "End time must be after start time");
 
-export const updateTaskSchema = z.object({
-  title: z.string().trim().min(1).max(200).optional(),
-  notes: z.string().max(5000).optional(),
-  importance: scoreSchema.optional(),
-  urgency: scoreSchema.optional(),
-  dueDate: dateSchema.nullable().optional(),
-  tagIds: tagIdsSchema.optional(),
-  status: z.enum(TASK_STATUSES).optional(),
-  archived: z.boolean().optional()
-});
+export const updateTaskSchema = z
+  .object({
+    title: z.string().trim().min(1).max(200).optional(),
+    notes: z.string().max(5000).optional(),
+    importance: scoreSchema.optional(),
+    urgency: scoreSchema.optional(),
+    dueDate: dateSchema.nullable().optional(),
+    scheduledStart: dateTimeSchema.nullable().optional(),
+    scheduledEnd: dateTimeSchema.nullable().optional(),
+    tagIds: tagIdsSchema.optional(),
+    status: z.enum(TASK_STATUSES).optional(),
+    archived: z.boolean().optional()
+  })
+  .refine(validSchedule, "End time must be after start time");
 
 export const createTagSchema = z.object({
   name: z.string().trim().min(1).max(30),

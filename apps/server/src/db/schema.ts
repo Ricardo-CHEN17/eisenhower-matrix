@@ -15,6 +15,8 @@ export const tasks = sqliteTable(
     importance: integer("importance").notNull().default(50),
     urgency: integer("urgency").notNull().default(50),
     dueDate: text("due_date"),
+    scheduledStart: text("scheduled_start"),
+    scheduledEnd: text("scheduled_end"),
     status: text("status", { enum: ["active", "completed"] })
       .notNull()
       .default("active"),
@@ -56,5 +58,21 @@ export const settings = sqliteTable("settings", {
   value: text("value").notNull()
 });
 
+export const calendarSubscriptions = sqliteTable("calendar_subscriptions", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  color: text("color").notNull(),
+  sourceType: text("source_type", { enum: ["url", "file"] })
+    .notNull()
+    .default("url"),
+  url: text("url"),
+  rawIcs: text("raw_ics").notNull().default(""),
+  lastFetchedAt: text("last_fetched_at"),
+  lastError: text("last_error"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull()
+});
+
 export type TaskRow = typeof tasks.$inferSelect;
 export type TagRow = typeof tags.$inferSelect;
+export type CalendarSubscriptionRow = typeof calendarSubscriptions.$inferSelect;

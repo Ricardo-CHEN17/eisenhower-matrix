@@ -1,7 +1,37 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { Settings, Tag, Task } from "@eisenhower/shared";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { CalendarEvent, CalendarSubscription, Settings, Tag, Task } from "@eisenhower/shared";
 import { createApp } from "../src/app";
 import { createDb, type DbContext } from "../src/db/client";
+
+const ICS = `BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//EN
+BEGIN:VEVENT
+UID:meeting
+SUMMARY:Team meeting
+DTSTART:20261019T090000Z
+DTEND:20261019T100000Z
+LOCATION:Room 3
+END:VEVENT
+BEGIN:VEVENT
+UID:standup
+SUMMARY:Daily standup
+DTSTART:20261019T010000Z
+DTEND:20261019T011500Z
+RRULE:FREQ=DAILY;COUNT=3
+END:VEVENT
+BEGIN:VEVENT
+UID:holiday
+SUMMARY:Holiday
+DTSTART;VALUE=DATE:20261020
+DTEND;VALUE=DATE:20261021
+END:VEVENT
+END:VCALENDAR`;
+
+const EVENT_RANGE = {
+  start: "2026-10-18T00:00:00.000Z",
+  end: "2026-10-25T00:00:00.000Z"
+};
 
 describe("API", () => {
   let context: DbContext;
@@ -14,6 +44,7 @@ describe("API", () => {
 
   afterEach(() => {
     context.sqlite.close();
+    vi.restoreAllMocks();
   });
 
   async function request(path: string, init?: RequestInit) {
@@ -170,5 +201,111 @@ describe("API", () => {
 
     const active = await request("/api/tasks");
     expect(active.body).toEqual([]);
+  });
+
+  it("stores and clears a task schedule", async () => {
+    const created = await request(
+      "/api/tasks",
+      json({
+        title: "Scheduled",
+        scheduledStart: "2026-10-19T01:00:00.000Z",
+        scheduledEnd: "2026-10-19T02:00:00.000Z"
+      })
+    );
+    expect(created.response.status).toBe(201);
+    const task = created.body as Task;
+    expect(task.scheduledStart).toBe("2026-10-19T01:00:00.000Z");
+    expect(task.scheduledEnd).toBe("2026-10-19T02:00:00.000Z");
+
+    const cleared = await request(`/api/tasks/${task.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ scheduledStart: null, scheduledEnd: null })
+    });
+    expect(cleared.response.status).toBe(200);
+    expect((cleared.body as Task).scheduledStart).toBeNull();
+  });
+
+  it("rejects a schedule whose end is before its start", async () => {
+    const created = await request(
+      "/api/tasks",
+      json({
+        title: "Bad schedule",
+        scheduledStart: "2026-10-19T02:00:00.000Z",
+        scheduledEnd: "2026-10-19T01:00:00.000Z"
+      })
+    );
+    expect(created.response.status).toBe(400);
+  });
+
+  it("imports an ICS file and returns expanded events", async () => {
+    const imported = await request(
+      "/api/calendar/import",
+      json({ name: "Imported", ics: ICS })
+    );
+    expect(imported.response.status).toBe(201);
+    const subscription = imported.body as CalendarSubscription;
+    expect(subscription.sourceType).toBe("file");
+
+    const events = await request(
+      `/api/calendar/events?start=${encodeURIComponent(EVENT_RANGE.start)}&end=${encodeURIComponent(EVENT_RANGE.end)}`
+    );
+    expect(events.response.status).toBe(200);
+    const list = events.body as CalendarEvent[];
+    expect(list.some((event) => event.title === "Team meeting")).toBe(true);
+    expect(list.some((event) => event.title === "Holiday" && event.allDay)).toBe(
+      true
+    );
+    expect(list.filter((event) => event.title === "Daily standup")).toHaveLength(
+      3
+    );
+  });
+
+  it("rejects invalid ICS imports", async () => {
+    const imported = await request(
+      "/api/calendar/import",
+      json({ name: "Broken", ics: "not a calendar" })
+    );
+    expect(imported.response.status).toBe(400);
+  });
+
+  it("fetches a URL subscription and deletes it", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        new Response(ICS, {
+          status: 200,
+          headers: { "content-type": "text/calendar" }
+        })
+      );
+
+    const created = await request(
+      "/api/calendar/subscriptions",
+      json({
+        name: "Remote",
+        url: "webcal://example.com/calendar.ics"
+      })
+    );
+    expect(created.response.status).toBe(201);
+    const subscription = created.body as CalendarSubscription;
+    expect(subscription.url).toBe("https://example.com/calendar.ics");
+    expect(subscription.lastError).toBeNull();
+    expect(fetchMock).toHaveBeenCalledOnce();
+
+    const duplicate = await request(
+      "/api/calendar/subscriptions",
+      json({
+        name: "Remote again",
+        url: "https://example.com/calendar.ics"
+      })
+    );
+    expect(duplicate.response.status).toBe(409);
+
+    const deleted = await request(
+      `/api/calendar/subscriptions/${subscription.id}`,
+      { method: "DELETE" }
+    );
+    expect(deleted.response.status).toBe(200);
+    expect((await request("/api/calendar/subscriptions")).body).toEqual([]);
   });
 });

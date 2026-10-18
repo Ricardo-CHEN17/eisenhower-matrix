@@ -1,4 +1,8 @@
 import type {
+  CalendarEvent,
+  CalendarSubscription,
+  CreateCalendarSubscriptionInput,
+  ImportCalendarInput,
   Settings,
   Tag,
   Task,
@@ -46,6 +50,8 @@ export interface CreateTaskInput {
   importance?: number;
   urgency?: number;
   dueDate?: string | null;
+  scheduledStart?: string | null;
+  scheduledEnd?: string | null;
   tagIds?: string[];
 }
 
@@ -55,6 +61,8 @@ export interface UpdateTaskInput {
   importance?: number;
   urgency?: number;
   dueDate?: string | null;
+  scheduledStart?: string | null;
+  scheduledEnd?: string | null;
   tagIds?: string[];
   status?: TaskStatus;
   archived?: boolean;
@@ -70,6 +78,15 @@ export interface ApiClient {
   deleteTag(id: string): Promise<{ ok: true }>;
   getSettings(): Promise<Settings>;
   updateSettings(patch: Partial<Settings>): Promise<Settings>;
+  listCalendars(): Promise<CalendarSubscription[]>;
+  createCalendar(
+    input: CreateCalendarSubscriptionInput
+  ): Promise<CalendarSubscription>;
+  importCalendar(input: ImportCalendarInput): Promise<CalendarSubscription>;
+  deleteCalendar(id: string): Promise<{ ok: true }>;
+  refreshCalendar(id: string): Promise<CalendarSubscription>;
+  refreshAllCalendars(): Promise<CalendarSubscription[]>;
+  listCalendarEvents(start: string, end: string): Promise<CalendarEvent[]>;
 }
 
 const httpApi: ApiClient = {
@@ -119,9 +136,55 @@ const httpApi: ApiClient = {
       method: "PATCH",
       body: JSON.stringify(patch)
     });
+  },
+
+  listCalendars(): Promise<CalendarSubscription[]> {
+    return request<CalendarSubscription[]>("/api/calendar/subscriptions");
+  },
+
+  createCalendar(
+    input: CreateCalendarSubscriptionInput
+  ): Promise<CalendarSubscription> {
+    return request<CalendarSubscription>("/api/calendar/subscriptions", {
+      method: "POST",
+      body: JSON.stringify(input)
+    });
+  },
+
+  importCalendar(input: ImportCalendarInput): Promise<CalendarSubscription> {
+    return request<CalendarSubscription>("/api/calendar/import", {
+      method: "POST",
+      body: JSON.stringify(input)
+    });
+  },
+
+  deleteCalendar(id: string): Promise<{ ok: true }> {
+    return request<{ ok: true }>(`/api/calendar/subscriptions/${id}`, {
+      method: "DELETE"
+    });
+  },
+
+  refreshCalendar(id: string): Promise<CalendarSubscription> {
+    return request<CalendarSubscription>(
+      `/api/calendar/subscriptions/${id}/refresh`,
+      { method: "POST" }
+    );
+  },
+
+  refreshAllCalendars(): Promise<CalendarSubscription[]> {
+    return request<CalendarSubscription[]>("/api/calendar/refresh", {
+      method: "POST"
+    });
+  },
+
+  listCalendarEvents(start: string, end: string): Promise<CalendarEvent[]> {
+    const params = new URLSearchParams({ start, end });
+    return request<CalendarEvent[]>(`/api/calendar/events?${params}`);
   }
 };
 
 const useLocalData = import.meta.env.VITE_DATA_MODE === "local";
+
+export const isStaticDataMode = useLocalData;
 
 export const api: ApiClient = useLocalData ? localApi : httpApi;

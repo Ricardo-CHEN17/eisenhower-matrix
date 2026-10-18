@@ -13,6 +13,7 @@ The app is a single-user local full stack: React + Vite in the browser, Hono + S
 - **Threshold**: adjustable from 30 to 70, default 50.
 - **Organization**: due dates with overdue/today/soon states, tags, title/notes search, tag filtering (OR).
 - **Quadrant focus**: pick a quadrant from the top bar, or click its label on the matrix, to see all of its tasks with a List/Map toggle. Map keeps the spatial importance/urgency layout.
+- **Calendar**: week view with read-only ICS subscriptions/imports, task time blocks, a separate Due column, and overlap highlighting.
 - **Views**: In progress matrix; Completed and Archived lists.
 - **Undo**: completing or archiving a task shows a 5-second undo toast.
 - **Keyboard**: `n` adds a task, `/` focuses search, `Esc` closes overlays, arrow keys nudge a focused card/dot (Shift for ±10).
@@ -90,6 +91,33 @@ npm run preview -w @eisenhower/web -- --mode static
 
 The preview runs at `http://localhost:4173/eisenhower-matrix/`.
 
+## Calendar
+
+Open the **Calendar** tab to see a Sunday-first week view (07:00–24:00). Tasks with a schedule appear as time blocks; tasks with a due date appear in the separate Due column. Overlapping items are highlighted, and the task drawer lists the conflicts.
+
+External calendars are read-only. In the local app you can subscribe to a public ICS URL; both versions can import an exported `.ics` file.
+
+- **iCloud**: publish the calendar (Public Calendar), copy the `webcal://` link; the app converts it to `https://`. Private iCloud calendars are not supported.
+- **Google/Outlook**: use the secret/public iCal URL or published ICS link.
+- The subscription URL is effectively a password. It is stored only in your local SQLite database or browser storage.
+
+### GitHub Pages URL subscriptions
+
+Browsers cannot fetch arbitrary calendar URLs because of CORS. The Pages build uses the small Cloudflare Worker in `workers/calendar-proxy`:
+
+1. Change `ALLOWED_ORIGINS` in `workers/calendar-proxy/wrangler.toml` to your Pages origin.
+2. Deploy it:
+   ```bash
+   cd workers/calendar-proxy
+   npm install
+   npm run deploy
+   ```
+3. Paste the Worker URL into the **Calendars** dialog, or set `VITE_CALENDAR_PROXY_URL` in `apps/web/.env.static` and rebuild.
+
+For automatic Worker deploys, add `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` repository secrets. `.github/workflows/deploy-calendar-proxy.yml` deploys changes under `workers/calendar-proxy`.
+
+Uploaded `.ics` files work on Pages without the proxy.
+
 ## Data
 
 - SQLite database: `data/app.db` (created automatically on first start)
@@ -146,7 +174,9 @@ apps/
   web/          React + Vite + TanStack Query
     src/
 packages/
-  shared/       Shared types, Zod schemas, score/quadrant/due helpers
+  shared/       Shared types, Zod schemas, score/quadrant/due helpers, ICS parser
+workers/
+  calendar-proxy/  Cloudflare Worker CORS proxy for Pages URL subscriptions
 mockups/
   matrix-visual.html   Static design draft (not used at runtime)
 data/           SQLite database (gitignored)
@@ -165,6 +195,13 @@ GET    /api/tags
 POST   /api/tags
 PATCH  /api/tags/:id
 DELETE /api/tags/:id
+GET    /api/calendar/subscriptions
+POST   /api/calendar/subscriptions
+POST   /api/calendar/import
+POST   /api/calendar/subscriptions/:id/refresh
+POST   /api/calendar/refresh
+DELETE /api/calendar/subscriptions/:id
+GET    /api/calendar/events?start=ISO&end=ISO
 GET    /api/settings
 PATCH  /api/settings
 ```

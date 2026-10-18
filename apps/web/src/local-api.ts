@@ -1,12 +1,23 @@
 import {
   DEFAULT_SETTINGS,
+  calendarColorFor,
   clampScore,
   clampThreshold,
+  createCalendarSubscriptionSchema,
   createTagSchema,
   createTaskSchema,
+  importCalendarSchema,
+  isValidCalendarIcs,
+  normalizeCalendarUrl,
+  parseCalendarEvents,
   settingsPatchSchema,
   tagColorFor,
   updateTaskSchema,
+  type CalendarEvent,
+  type CalendarSourceType,
+  type CalendarSubscription,
+  type CreateCalendarSubscriptionInput,
+  type ImportCalendarInput,
   type Settings,
   type Tag,
   type Task,
@@ -15,15 +26,29 @@ import {
 import type { ApiClient, CreateTaskInput, UpdateTaskInput } from "./api";
 
 const STORAGE_KEY = "eisenhower-matrix.v1";
+const MAX_ICS_BYTES = 5_000_000;
 
 interface StoredTask extends Omit<Task, "tags"> {
   tagIds: string[];
+}
+
+interface StoredCalendar {
+  id: string;
+  name: string;
+  color: string;
+  sourceType: CalendarSourceType;
+  url: string | null;
+  proxyUrl: string | null;
+  rawIcs: string;
+  lastFetchedAt: string | null;
+  lastError: string | null;
 }
 
 interface Store {
   tasks: StoredTask[];
   tags: Tag[];
   settings: Settings;
+  calendars: StoredCalendar[];
 }
 
 function nowIso(): string {
@@ -41,7 +66,8 @@ function emptyStore(): Store {
   return {
     tasks: [],
     tags: [],
-    settings: { ...DEFAULT_SETTINGS }
+    settings: { ...DEFAULT_SETTINGS },
+    calendars: []
   };
 }
 
@@ -59,7 +85,8 @@ function readStore(): Store {
           parsed.settings?.threshold ?? DEFAULT_SETTINGS.threshold
         ),
         theme: parsed.settings?.theme === "fog" ? "fog" : "graphite"
-      }
+      },
+      calendars: Array.isArray(parsed.calendars) ? parsed.calendars : []
     };
   } catch {
     return emptyStore();
@@ -86,6 +113,8 @@ function toTask(stored: StoredTask, tags: Tag[]): Task {
   const { tagIds, ...task } = stored;
   return {
     ...task,
+    scheduledStart: task.scheduledStart ?? null,
+    scheduledEnd: task.scheduledEnd ?? null,
     tags: tagIds
       .map((id) => byId.get(id))
       .filter((tag): tag is Tag => Boolean(tag))
@@ -97,6 +126,45 @@ function resolveTagIds(ids: string[] | undefined, tags: Tag[]): string[] {
   if (!ids) return [];
   const known = new Set(tags.map((tag) => tag.id));
   return [...new Set(ids)].filter((id) => known.has(id));
+}
+
+function toSubscription(stored: StoredCalendar): CalendarSubscription {
+  return {
+    id: stored.id,
+    name: stored.name,
+    color: stored.color,
+    sourceType: stored.sourceType,
+    url: stored.url,
+    lastFetchedAt: stored.lastFetchedAt,
+    lastError: stored.lastError
+  };
+}
+
+async function fetchViaProxy(
+  proxyUrl: string,
+  calendarUrl: string
+): Promise<string> {
+  let target: URL;
+  try {
+    target = new URL(proxyUrl);
+  } catch {
+    throw new Error("Enter a valid calendar proxy URL.");
+  }
+  target.searchParams.set("url", normalizeCalendarUrl(calendarUrl));
+
+  const response = await fetch(target.toString());
+  if (!response.ok) {
+    throw new Error(`Calendar proxy returned ${response.status}.`);
+  }
+
+  const text = await response.text();
+  if (text.length > MAX_ICS_BYTES) {
+    throw new Error("This calendar file is too large.");
+  }
+  if (!isValidCalendarIcs(text)) {
+    throw new Error("The proxy did not return a valid iCalendar (.ics) feed.");
+  }
+  return text;
 }
 
 export const localApi: ApiClient = {
@@ -129,6 +197,8 @@ export const localApi: ApiClient = {
       importance: clampScore(parsed.data.importance ?? 50),
       urgency: clampScore(parsed.data.urgency ?? 50),
       dueDate: parsed.data.dueDate ?? null,
+      scheduledStart: parsed.data.scheduledStart ?? null,
+      scheduledEnd: parsed.data.scheduledEnd ?? null,
       status: "active",
       completedAt: null,
       archivedAt: null,
@@ -160,6 +230,12 @@ export const localApi: ApiClient = {
     }
     if (patch.urgency !== undefined) task.urgency = clampScore(patch.urgency);
     if (patch.dueDate !== undefined) task.dueDate = patch.dueDate;
+    if (patch.scheduledStart !== undefined) {
+      task.scheduledStart = patch.scheduledStart;
+    }
+    if (patch.scheduledEnd !== undefined) {
+      task.scheduledEnd = patch.scheduledEnd;
+    }
 
     if (patch.status !== undefined) {
       task.status = patch.status;
@@ -243,5 +319,161 @@ export const localApi: ApiClient = {
     store.settings = next;
     writeStore(store);
     return next;
+  },
+
+  async listCalendars(): Promise<CalendarSubscription[]> {
+    return readStore().calendars.map(toSubscription);
+  },
+
+  async createCalendar(
+    input: CreateCalendarSubscriptionInput
+  ): Promise<CalendarSubscription> {
+    const parsed = createCalendarSubscriptionSchema.safeParse(input);
+    if (!parsed.success) throw new Error(parseMessage(parsed));
+
+    if (!parsed.data.proxyUrl) {
+      throw new Error(
+        "URL subscriptions on this hosted version need a calendar proxy URL. Add one below, or upload an .ics file instead."
+      );
+    }
+
+    const url = normalizeCalendarUrl(parsed.data.url);
+    const store = readStore();
+    if (store.calendars.some((calendar) => calendar.url === url)) {
+      throw new Error("This calendar is already added.");
+    }
+
+    const rawIcs = await fetchViaProxy(parsed.data.proxyUrl, url);
+    const calendar: StoredCalendar = {
+      id: newId(),
+      name: parsed.data.name,
+      color: parsed.data.color ?? calendarColorFor(parsed.data.name),
+      sourceType: "url",
+      url,
+      proxyUrl: parsed.data.proxyUrl,
+      rawIcs,
+      lastFetchedAt: new Date().toISOString(),
+      lastError: null
+    };
+    store.calendars.push(calendar);
+    writeStore(store);
+    return toSubscription(calendar);
+  },
+
+  async importCalendar(
+    input: ImportCalendarInput
+  ): Promise<CalendarSubscription> {
+    const parsed = importCalendarSchema.safeParse(input);
+    if (!parsed.success) throw new Error(parseMessage(parsed));
+    if (!isValidCalendarIcs(parsed.data.ics)) {
+      throw new Error("This file is not a valid iCalendar (.ics) feed.");
+    }
+
+    const store = readStore();
+    const calendar: StoredCalendar = {
+      id: newId(),
+      name: parsed.data.name,
+      color: parsed.data.color ?? calendarColorFor(parsed.data.name),
+      sourceType: "file",
+      url: null,
+      proxyUrl: null,
+      rawIcs: parsed.data.ics,
+      lastFetchedAt: new Date().toISOString(),
+      lastError: null
+    };
+    store.calendars.push(calendar);
+    writeStore(store);
+    return toSubscription(calendar);
+  },
+
+  async deleteCalendar(id: string): Promise<{ ok: true }> {
+    const store = readStore();
+    store.calendars = store.calendars.filter((calendar) => calendar.id !== id);
+    writeStore(store);
+    return { ok: true };
+  },
+
+  async refreshCalendar(id: string): Promise<CalendarSubscription> {
+    const store = readStore();
+    const calendar = store.calendars.find((item) => item.id === id);
+    if (!calendar) throw new Error("Calendar not found");
+    if (calendar.sourceType !== "url" || !calendar.url) return toSubscription(calendar);
+
+    if (!calendar.proxyUrl) {
+      calendar.lastError =
+        "This calendar needs a proxy URL before it can be refreshed.";
+      writeStore(store);
+      return toSubscription(calendar);
+    }
+
+    try {
+      calendar.rawIcs = await fetchViaProxy(calendar.proxyUrl, calendar.url);
+      calendar.lastFetchedAt = new Date().toISOString();
+      calendar.lastError = null;
+    } catch (error) {
+      calendar.lastError =
+        error instanceof Error ? error.message : "Could not refresh calendar";
+    }
+    writeStore(store);
+    return toSubscription(calendar);
+  },
+
+  async refreshAllCalendars(): Promise<CalendarSubscription[]> {
+    const store = readStore();
+    for (const calendar of store.calendars) {
+      if (calendar.sourceType !== "url" || !calendar.url || !calendar.proxyUrl) {
+        continue;
+      }
+      try {
+        calendar.rawIcs = await fetchViaProxy(calendar.proxyUrl, calendar.url);
+        calendar.lastFetchedAt = new Date().toISOString();
+        calendar.lastError = null;
+      } catch (error) {
+        calendar.lastError =
+          error instanceof Error ? error.message : "Could not refresh calendar";
+      }
+    }
+    writeStore(store);
+    return store.calendars.map(toSubscription);
+  },
+
+  async listCalendarEvents(
+    start: string,
+    end: string
+  ): Promise<CalendarEvent[]> {
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    if (
+      Number.isNaN(startDate.getTime()) ||
+      Number.isNaN(endDate.getTime()) ||
+      endDate <= startDate
+    ) {
+      throw new Error("Invalid calendar range.");
+    }
+
+    const store = readStore();
+    const events: CalendarEvent[] = [];
+    const seen = new Set<string>();
+
+    for (const calendar of store.calendars) {
+      if (!calendar.rawIcs) continue;
+      try {
+        const parsed = parseCalendarEvents(
+          calendar.rawIcs,
+          startDate,
+          endDate,
+          calendar.id
+        );
+        for (const event of parsed) {
+          if (seen.has(event.id)) continue;
+          seen.add(event.id);
+          events.push(event);
+        }
+      } catch {
+        // Ignore a broken feed so other calendars still render.
+      }
+    }
+
+    return events.sort((a, b) => a.start.localeCompare(b.start));
   }
 };

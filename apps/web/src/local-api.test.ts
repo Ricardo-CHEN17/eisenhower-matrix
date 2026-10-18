@@ -1,6 +1,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { localApi } from "./local-api";
 
+const ICS = `BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//EN
+BEGIN:VEVENT
+UID:meeting
+SUMMARY:Team meeting
+DTSTART:20261019T090000Z
+DTEND:20261019T100000Z
+END:VEVENT
+BEGIN:VEVENT
+UID:holiday
+SUMMARY:Holiday
+DTSTART;VALUE=DATE:20261020
+DTEND;VALUE=DATE:20261021
+END:VEVENT
+END:VCALENDAR`;
+
 class MemoryStorage {
   private data = new Map<string, string>();
 
@@ -112,5 +129,73 @@ describe("localApi", () => {
 
   it("rejects invalid task input", async () => {
     await expect(localApi.createTask({ title: "   " })).rejects.toThrow();
+  });
+
+  it("stores a task schedule", async () => {
+    const task = await localApi.createTask({
+      title: "Scheduled",
+      scheduledStart: "2026-10-19T01:00:00.000Z",
+      scheduledEnd: "2026-10-19T02:00:00.000Z"
+    });
+    expect(task.scheduledStart).toBe("2026-10-19T01:00:00.000Z");
+
+    const updated = await localApi.updateTask(task.id, {
+      scheduledStart: null,
+      scheduledEnd: null
+    });
+    expect(updated.scheduledStart).toBeNull();
+    expect(updated.scheduledEnd).toBeNull();
+  });
+
+  it("imports an ICS file and expands its events", async () => {
+    const calendar = await localApi.importCalendar({
+      name: "Imported",
+      ics: ICS
+    });
+    expect(calendar.sourceType).toBe("file");
+
+    const events = await localApi.listCalendarEvents(
+      "2026-10-18T00:00:00.000Z",
+      "2026-10-25T00:00:00.000Z"
+    );
+    expect(events.some((event) => event.title === "Team meeting")).toBe(true);
+    expect(events.some((event) => event.allDay)).toBe(true);
+  });
+
+  it("requires a proxy for URL subscriptions in static mode", async () => {
+    await expect(
+      localApi.createCalendar({
+        name: "Remote",
+        url: "https://example.com/calendar.ics"
+      })
+    ).rejects.toThrow("proxy");
+  });
+
+  it("fetches a URL subscription through the proxy", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(ICS, {
+          status: 200,
+          headers: { "content-type": "text/calendar" }
+        })
+      )
+    );
+
+    const calendar = await localApi.createCalendar({
+      name: "Remote",
+      url: "webcal://example.com/calendar.ics",
+      proxyUrl: "https://proxy.example/"
+    });
+    expect(calendar.url).toBe("https://example.com/calendar.ics");
+
+    const calendars = await localApi.listCalendars();
+    expect(calendars).toHaveLength(1);
+
+    const events = await localApi.listCalendarEvents(
+      "2026-10-18T00:00:00.000Z",
+      "2026-10-25T00:00:00.000Z"
+    );
+    expect(events.some((event) => event.title === "Team meeting")).toBe(true);
   });
 });

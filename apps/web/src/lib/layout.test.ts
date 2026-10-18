@@ -15,6 +15,8 @@ function task(
     importance,
     urgency,
     dueDate: null,
+    scheduledStart: null,
+    scheduledEnd: null,
     status: "active",
     completedAt: null,
     archivedAt: null,

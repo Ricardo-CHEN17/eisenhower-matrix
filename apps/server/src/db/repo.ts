@@ -2,9 +2,12 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq, inArray, isNotNull, isNull, like, or } from "drizzle-orm";
 import {
   DEFAULT_SETTINGS,
+  calendarColorFor,
   clampScore,
   clampThreshold,
   tagColorFor,
+  type CalendarSourceType,
+  type CalendarSubscription,
   type Settings,
   type Tag,
   type Task,
@@ -12,8 +15,14 @@ import {
   type TaskView
 } from "@eisenhower/shared";
 import type { AppDb } from "./client";
-import { settings as settingsTable, tags, taskTags, tasks } from "./schema";
-import type { TaskRow } from "./schema";
+import {
+  calendarSubscriptions as calendarSubscriptionsTable,
+  settings as settingsTable,
+  tags,
+  taskTags,
+  tasks
+} from "./schema";
+import type { CalendarSubscriptionRow, TaskRow } from "./schema";
 
 export interface CreateTaskInput {
   title: string;
@@ -21,6 +30,8 @@ export interface CreateTaskInput {
   importance?: number;
   urgency?: number;
   dueDate?: string | null;
+  scheduledStart?: string | null;
+  scheduledEnd?: string | null;
   tagIds?: string[];
 }
 
@@ -30,6 +41,8 @@ export interface UpdateTaskInput {
   importance?: number;
   urgency?: number;
   dueDate?: string | null;
+  scheduledStart?: string | null;
+  scheduledEnd?: string | null;
   tagIds?: string[];
   status?: TaskStatus;
   archived?: boolean;
@@ -53,6 +66,8 @@ function mapTask(row: TaskRow, taskTagsList: Tag[]): Task {
     importance: row.importance,
     urgency: row.urgency,
     dueDate: row.dueDate,
+    scheduledStart: row.scheduledStart,
+    scheduledEnd: row.scheduledEnd,
     status: row.status as TaskStatus,
     completedAt: row.completedAt,
     archivedAt: row.archivedAt,
@@ -156,6 +171,8 @@ export function createTask(db: AppDb, input: CreateTaskInput): Task {
         importance: clampScore(input.importance ?? 50),
         urgency: clampScore(input.urgency ?? 50),
         dueDate: input.dueDate ?? null,
+        scheduledStart: input.scheduledStart ?? null,
+        scheduledEnd: input.scheduledEnd ?? null,
         status: "active",
         completedAt: null,
         archivedAt: null,
@@ -191,6 +208,10 @@ export function updateTask(
   if (input.importance !== undefined) patch.importance = clampScore(input.importance);
   if (input.urgency !== undefined) patch.urgency = clampScore(input.urgency);
   if (input.dueDate !== undefined) patch.dueDate = input.dueDate;
+  if (input.scheduledStart !== undefined) {
+    patch.scheduledStart = input.scheduledStart;
+  }
+  if (input.scheduledEnd !== undefined) patch.scheduledEnd = input.scheduledEnd;
 
   if (input.status !== undefined) {
     patch.status = input.status;
@@ -311,4 +332,120 @@ export function updateSettings(db: AppDb, patch: Partial<Settings>): Settings {
     .run();
 
   return next;
+}
+
+function mapCalendarSubscription(
+  row: CalendarSubscriptionRow
+): CalendarSubscription {
+  return {
+    id: row.id,
+    name: row.name,
+    color: row.color,
+    sourceType: row.sourceType as CalendarSourceType,
+    url: row.url,
+    lastFetchedAt: row.lastFetchedAt,
+    lastError: row.lastError
+  };
+}
+
+export function listCalendarSubscriptions(db: AppDb): CalendarSubscription[] {
+  return db
+    .select()
+    .from(calendarSubscriptionsTable)
+    .orderBy(calendarSubscriptionsTable.name)
+    .all()
+    .map(mapCalendarSubscription);
+}
+
+export function getCalendarSubscription(
+  db: AppDb,
+  id: string
+): CalendarSubscription | null {
+  const row = db
+    .select()
+    .from(calendarSubscriptionsTable)
+    .where(eq(calendarSubscriptionsTable.id, id))
+    .get();
+  return row ? mapCalendarSubscription(row) : null;
+}
+
+export function insertCalendarSubscription(
+  db: AppDb,
+  input: {
+    name: string;
+    color?: string;
+    sourceType: CalendarSourceType;
+    url?: string | null;
+    rawIcs: string;
+    lastFetchedAt?: string | null;
+    lastError?: string | null;
+  }
+): CalendarSubscription {
+  const id = randomUUID();
+  const now = nowIso();
+
+  db.insert(calendarSubscriptionsTable)
+    .values({
+      id,
+      name: input.name,
+      color: input.color ?? calendarColorFor(input.name),
+      sourceType: input.sourceType,
+      url: input.url ?? null,
+      rawIcs: input.rawIcs,
+      lastFetchedAt: input.lastFetchedAt ?? null,
+      lastError: input.lastError ?? null,
+      createdAt: now,
+      updatedAt: now
+    })
+    .run();
+
+  return getCalendarSubscription(db, id)!;
+}
+
+export function updateCalendarSubscriptionFetch(
+  db: AppDb,
+  id: string,
+  input: {
+    rawIcs?: string;
+    lastFetchedAt?: string | null;
+    lastError: string | null;
+  }
+): CalendarSubscription | null {
+  const patch: Partial<typeof calendarSubscriptionsTable.$inferInsert> = {
+    lastError: input.lastError,
+    updatedAt: nowIso()
+  };
+  if (input.rawIcs !== undefined) patch.rawIcs = input.rawIcs;
+  if (input.lastFetchedAt !== undefined) {
+    patch.lastFetchedAt = input.lastFetchedAt;
+  }
+
+  const changed = db
+    .update(calendarSubscriptionsTable)
+    .set(patch)
+    .where(eq(calendarSubscriptionsTable.id, id))
+    .run().changes;
+
+  return changed ? getCalendarSubscription(db, id) : null;
+}
+
+export function deleteCalendarSubscription(db: AppDb, id: string): boolean {
+  return (
+    db
+      .delete(calendarSubscriptionsTable)
+      .where(eq(calendarSubscriptionsTable.id, id))
+      .run().changes > 0
+  );
+}
+
+export function listCalendarIcs(
+  db: AppDb
+): Array<{ id: string; rawIcs: string }> {
+  return db
+    .select({
+      id: calendarSubscriptionsTable.id,
+      rawIcs: calendarSubscriptionsTable.rawIcs
+    })
+    .from(calendarSubscriptionsTable)
+    .all();
 }

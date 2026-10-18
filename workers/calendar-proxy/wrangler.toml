@@ -1,0 +1,7 @@
+name = "eisenhower-calendar-proxy"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+
+# Change this to your GitHub Pages origin (and keep local origins for testing).
+[vars]
+ALLOWED_ORIGINS = "https://ricardo-chen17.github.io,http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173"

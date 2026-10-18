@@ -10,11 +10,19 @@ import {
 } from "@eisenhower/shared";
 import type { UpdateTaskInput } from "../api";
 import { DateInput } from "./DateInput";
+import {
+  addHoursIso,
+  combineLocal,
+  dateKeyFromIso,
+  localDateKey,
+  timeFromIso
+} from "../lib/calendar";
 
 interface TaskDrawerProps {
   task: Task;
   tags: Tag[];
   threshold: number;
+  conflicts: string[];
   onClose: () => void;
   onPreview: (patch: UpdateTaskInput) => void;
   onSave: (patch: UpdateTaskInput) => void;
@@ -28,6 +36,7 @@ export function TaskDrawer({
   task,
   tags,
   threshold,
+  conflicts,
   onClose,
   onPreview,
   onSave,
@@ -39,6 +48,15 @@ export function TaskDrawer({
   const [titleText, setTitleText] = useState(task.title);
   const [impText, setImpText] = useState(String(task.importance));
   const [urgText, setUrgText] = useState(String(task.urgency));
+  const [scheduleDate, setScheduleDate] = useState(
+    task.scheduledStart ? dateKeyFromIso(task.scheduledStart) : ""
+  );
+  const [startTime, setStartTime] = useState(
+    task.scheduledStart ? timeFromIso(task.scheduledStart) : "09:00"
+  );
+  const [endTime, setEndTime] = useState(
+    task.scheduledEnd ? timeFromIso(task.scheduledEnd) : "10:00"
+  );
   const [tagName, setTagName] = useState("");
   const [tagError, setTagError] = useState("");
   const [creatingTag, setCreatingTag] = useState(false);
@@ -65,7 +83,21 @@ export function TaskDrawer({
     setTitleText(task.title);
     setImpText(String(task.importance));
     setUrgText(String(task.urgency));
-  }, [task.id, task.title, task.importance, task.urgency]);
+    setScheduleDate(
+      task.scheduledStart ? dateKeyFromIso(task.scheduledStart) : ""
+    );
+    setStartTime(
+      task.scheduledStart ? timeFromIso(task.scheduledStart) : "09:00"
+    );
+    setEndTime(task.scheduledEnd ? timeFromIso(task.scheduledEnd) : "10:00");
+  }, [
+    task.id,
+    task.title,
+    task.importance,
+    task.urgency,
+    task.scheduledStart,
+    task.scheduledEnd
+  ]);
 
   useEffect(() => {
     return () => {
@@ -149,6 +181,62 @@ export function TaskDrawer({
     } finally {
       setCreatingTag(false);
     }
+  };
+
+  const addSchedule = () => {
+    const date = task.dueDate ?? localDateKey(new Date());
+    const start = combineLocal(date, "09:00");
+    const end = combineLocal(date, "10:00");
+    setScheduleDate(date);
+    setStartTime("09:00");
+    setEndTime("10:00");
+    queue({ scheduledStart: start, scheduledEnd: end }, true);
+  };
+
+  const changeScheduleDate = (value: string | null) => {
+    if (!value) {
+      clearSchedule();
+      return;
+    }
+    const start = combineLocal(value, startTime || "09:00");
+    let end = combineLocal(value, endTime || "10:00");
+    if (new Date(end).getTime() <= new Date(start).getTime()) {
+      end = addHoursIso(start, 1);
+      setEndTime(timeFromIso(end));
+    }
+    setScheduleDate(value);
+    queue({ scheduledStart: start, scheduledEnd: end }, true);
+  };
+
+  const changeStartTime = (value: string) => {
+    if (!scheduleDate) return;
+    setStartTime(value);
+    const start = combineLocal(scheduleDate, value);
+    let end = combineLocal(scheduleDate, endTime || "10:00");
+    if (new Date(end).getTime() <= new Date(start).getTime()) {
+      end = addHoursIso(start, 1);
+      setEndTime(timeFromIso(end));
+    }
+    queue({ scheduledStart: start, scheduledEnd: end }, true);
+  };
+
+  const changeEndTime = (value: string) => {
+    if (!scheduleDate) return;
+    setEndTime(value);
+    const start = combineLocal(scheduleDate, startTime || "09:00");
+    let end = combineLocal(scheduleDate, value);
+    if (new Date(end).getTime() <= new Date(start).getTime()) {
+      end = addHoursIso(start, 1);
+      setEndTime(timeFromIso(end));
+    }
+    queue({ scheduledStart: start, scheduledEnd: end }, true);
+  };
+
+  const clearSchedule = () => {
+    setScheduleDate("");
+    setStartTime("09:00");
+    setEndTime("10:00");
+    queue({ scheduledStart: null, scheduledEnd: null }, true);
   };
 
   const quadrant = quadrantOf(task, threshold);
@@ -284,6 +372,49 @@ export function TaskDrawer({
           value={task.dueDate}
           onChange={(dueDate) => queue({ dueDate }, true)}
         />
+      </div>
+
+      <div className="detail-section">
+        <label>Schedule</label>
+        {task.scheduledStart ? (
+          <div className="schedule-editor">
+            <DateInput
+              id="drawer-schedule-date"
+              value={scheduleDate || null}
+              onChange={changeScheduleDate}
+            />
+            <div className="schedule-times">
+              <label htmlFor="drawer-start">Start</label>
+              <input
+                id="drawer-start"
+                className="time-input"
+                type="time"
+                value={startTime}
+                onChange={(event) => changeStartTime(event.target.value)}
+              />
+              <label htmlFor="drawer-end">End</label>
+              <input
+                id="drawer-end"
+                className="time-input"
+                type="time"
+                value={endTime}
+                onChange={(event) => changeEndTime(event.target.value)}
+              />
+            </div>
+            {conflicts.length > 0 && (
+              <p className="schedule-conflict">
+                Overlaps: {conflicts.join(", ")}
+              </p>
+            )}
+            <button className="schedule-clear" onClick={clearSchedule}>
+              Clear schedule
+            </button>
+          </div>
+        ) : (
+          <button className="schedule-add" onClick={addSchedule}>
+            + Add time block
+          </button>
+        )}
       </div>
 
       <div className="detail-section">
