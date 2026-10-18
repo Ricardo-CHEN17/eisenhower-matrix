@@ -69,6 +69,27 @@ Drag **Eisenhower Matrix** from `~/Applications` to the Dock. The first launch m
 
 To stop it from a terminal instead: `npm run app:stop`.
 
+## GitHub Pages (static)
+
+`.github/workflows/deploy-pages.yml` builds a static version and deploys it to GitHub Pages on every push to `main`.
+
+The Pages build stores data in the browser instead of using the API/SQLite server:
+
+- Data lives in `localStorage` under `eisenhower-matrix.v1` in the current browser.
+- There is no cross-device sync, server backup, or automatic migration of the local SQLite database.
+- The full local app (`npm run dev` / `npm start`) is unchanged and still uses Hono + SQLite.
+
+This repository is configured to deploy with GitHub Actions. For a fork, set **Settings → Pages → Build and deployment → Source: GitHub Actions** once. The site is then available at `https://<user>.github.io/<repo>/`.
+
+To build and preview the static version locally:
+
+```bash
+npm run build:static
+npm run preview -w @eisenhower/web -- --mode static
+```
+
+The preview runs at `http://localhost:4173/eisenhower-matrix/`.
+
 ## Data
 
 - SQLite database: `data/app.db` (created automatically on first start)
@@ -91,6 +112,7 @@ Stop the app before replacing the database file.
 | --- | --- |
 | `npm run dev` | Start API and Vite dev server |
 | `npm run build` | Build the web app |
+| `npm run build:static` | Build the browser-storage version for GitHub Pages |
 | `npm start` | Serve the built app + API on port 3001 |
 | `npm run open` | Start the server if needed and open the app |
 | `npm run app:install` | Create the macOS launcher apps in `~/Applications` |

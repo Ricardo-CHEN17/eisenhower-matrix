@@ -5,6 +5,7 @@ import type {
   TaskStatus,
   TaskView
 } from "@eisenhower/shared";
+import { localApi } from "./local-api";
 
 export class ApiError extends Error {
   status: number;
@@ -59,7 +60,19 @@ export interface UpdateTaskInput {
   archived?: boolean;
 }
 
-export const api = {
+export interface ApiClient {
+  listTasks(view: TaskView): Promise<Task[]>;
+  createTask(input: CreateTaskInput): Promise<Task>;
+  updateTask(id: string, input: UpdateTaskInput): Promise<Task>;
+  deleteTask(id: string): Promise<{ ok: true }>;
+  listTags(): Promise<Tag[]>;
+  createTag(name: string): Promise<Tag>;
+  deleteTag(id: string): Promise<{ ok: true }>;
+  getSettings(): Promise<Settings>;
+  updateSettings(patch: Partial<Settings>): Promise<Settings>;
+}
+
+const httpApi: ApiClient = {
   listTasks(view: TaskView): Promise<Task[]> {
     return request<Task[]>(`/api/tasks?view=${view}`);
   },
@@ -108,3 +121,7 @@ export const api = {
     });
   }
 };
+
+const useLocalData = import.meta.env.VITE_DATA_MODE === "local";
+
+export const api: ApiClient = useLocalData ? localApi : httpApi;

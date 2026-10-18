@@ -12,6 +12,7 @@
     "dev:server": "npm run dev -w @eisenhower/server",
     "dev:web": "npm run dev -w @eisenhower/web",
     "build": "npm run build -w @eisenhower/web",
+    "build:static": "npm run build -w @eisenhower/web -- --mode static",
     "start": "npm run start -w @eisenhower/server",
     "open": "bash scripts/launch-app.sh",
     "app:install": "bash scripts/install-macos-app.sh",
