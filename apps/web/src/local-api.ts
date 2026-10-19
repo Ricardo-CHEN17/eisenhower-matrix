@@ -328,14 +328,15 @@ export const localApi: ApiClient = {
   async createCalendar(
     input: CreateCalendarSubscriptionInput
   ): Promise<CalendarSubscription> {
-    const parsed = createCalendarSubscriptionSchema.safeParse(input);
-    if (!parsed.success) throw new Error(parseMessage(parsed));
-
-    if (!parsed.data.proxyUrl) {
+    if (!input.proxyUrl) {
       throw new Error(
         "URL subscriptions on this hosted version need a calendar proxy URL. Add one below, or upload an .ics file instead."
       );
     }
+    const proxyUrl = input.proxyUrl;
+
+    const parsed = createCalendarSubscriptionSchema.safeParse(input);
+    if (!parsed.success) throw new Error(parseMessage(parsed));
 
     const url = normalizeCalendarUrl(parsed.data.url);
     const store = readStore();
@@ -343,14 +344,14 @@ export const localApi: ApiClient = {
       throw new Error("This calendar is already added.");
     }
 
-    const rawIcs = await fetchViaProxy(parsed.data.proxyUrl, url);
+    const rawIcs = await fetchViaProxy(proxyUrl, url);
     const calendar: StoredCalendar = {
       id: newId(),
       name: parsed.data.name,
       color: parsed.data.color ?? calendarColorFor(parsed.data.name),
       sourceType: "url",
       url,
-      proxyUrl: parsed.data.proxyUrl,
+      proxyUrl,
       rawIcs,
       lastFetchedAt: new Date().toISOString(),
       lastError: null

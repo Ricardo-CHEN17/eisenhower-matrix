@@ -95,7 +95,7 @@ export function CalendarsDialog({ onClose, onError }: CalendarsDialogProps) {
           setError("Paste a calendar subscription URL.");
           return;
         }
-        if (!isStaticDataMode && !proxyUrl.trim()) {
+        if (isStaticDataMode && !proxyUrl.trim()) {
           setError(
             "URL subscriptions on GitHub Pages need a calendar proxy URL. Paste the URL of your deployed proxy, or upload an .ics file."
           );
