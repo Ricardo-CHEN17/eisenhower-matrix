@@ -112,7 +112,9 @@ Browsers cannot fetch arbitrary calendar URLs because of CORS. The Pages build u
    npm install
    npm run deploy
    ```
-3. Paste the Worker URL into the **Calendars** dialog, or set `VITE_CALENDAR_PROXY_URL` in `apps/web/.env.static` and rebuild.
+3. Add a repository **Actions variable** named `CALENDAR_PROXY_URL` with the Worker URL (**Settings → Secrets and variables → Actions → Variables**), then re-run the Pages deployment. The build reads it as `VITE_CALENDAR_PROXY_URL`.
+
+If `CALENDAR_PROXY_URL` is not set, the Pages version only offers `.ics` upload; there is no Proxy URL field in the UI.
 
 For automatic Worker deploys, add `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` repository secrets. `.github/workflows/deploy-calendar-proxy.yml` deploys changes under `workers/calendar-proxy`.
 

@@ -16,8 +16,6 @@ interface CalendarsDialogProps {
 
 type AddMode = "url" | "file";
 
-const PROXY_STORAGE_KEY = "eisenhower.calendarProxyUrl";
-
 function formatSync(iso: string | null): string {
   if (!iso) return "Never synced";
   return `Synced ${new Date(iso).toLocaleString("en-US", {
@@ -37,20 +35,12 @@ export function CalendarsDialog({ onClose, onError }: CalendarsDialogProps) {
   const refreshCalendar = useRefreshCalendar();
   const refreshAll = useRefreshAllCalendars();
 
-  const [mode, setMode] = useState<AddMode>("url");
+  const proxyUrl = import.meta.env.VITE_CALENDAR_PROXY_URL?.trim() ?? "";
+  const showUrl = !isStaticDataMode || Boolean(proxyUrl);
+
+  const [mode, setMode] = useState<AddMode>(showUrl ? "url" : "file");
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
-  const [proxyUrl, setProxyUrl] = useState(() => {
-    try {
-      return (
-        window.localStorage.getItem(PROXY_STORAGE_KEY) ??
-        import.meta.env.VITE_CALENDAR_PROXY_URL ??
-        ""
-      );
-    } catch {
-      return import.meta.env.VITE_CALENDAR_PROXY_URL ?? "";
-    }
-  });
   const [ics, setIcs] = useState("");
   const [fileName, setFileName] = useState("");
   const [error, setError] = useState("");
@@ -95,24 +85,17 @@ export function CalendarsDialog({ onClose, onError }: CalendarsDialogProps) {
           setError("Paste a calendar subscription URL.");
           return;
         }
-        if (isStaticDataMode && !proxyUrl.trim()) {
+        if (isStaticDataMode && !proxyUrl) {
           setError(
-            "URL subscriptions on GitHub Pages need a calendar proxy URL. Paste the URL of your deployed proxy, or upload an .ics file."
+            "URL subscriptions are not configured on this site. Upload an .ics file instead."
           );
           return;
         }
         await createCalendar.mutateAsync({
           name: nextName,
           url: url.trim(),
-          proxyUrl: isStaticDataMode ? proxyUrl.trim() : undefined
+          proxyUrl: isStaticDataMode ? proxyUrl : undefined
         });
-        if (isStaticDataMode) {
-          try {
-            window.localStorage.setItem(PROXY_STORAGE_KEY, proxyUrl.trim());
-          } catch {
-            // Ignore storage failures.
-          }
-        }
         setUrl("");
       } else {
         if (!ics) {
@@ -244,30 +227,37 @@ export function CalendarsDialog({ onClose, onError }: CalendarsDialogProps) {
         </div>
 
         <div className="cal-dialog-add">
-          <div className="cal-add-tabs" role="tablist" aria-label="Add calendar">
-            <button
-              className={mode === "url" ? "active" : ""}
-              role="tab"
-              aria-selected={mode === "url"}
-              onClick={() => {
-                setMode("url");
-                setError("");
-              }}
-            >
-              Subscribe to URL
-            </button>
-            <button
-              className={mode === "file" ? "active" : ""}
-              role="tab"
-              aria-selected={mode === "file"}
-              onClick={() => {
-                setMode("file");
-                setError("");
-              }}
-            >
-              Upload .ics
-            </button>
-          </div>
+          {showUrl ? (
+            <div className="cal-add-tabs" role="tablist" aria-label="Add calendar">
+              <button
+                className={mode === "url" ? "active" : ""}
+                role="tab"
+                aria-selected={mode === "url"}
+                onClick={() => {
+                  setMode("url");
+                  setError("");
+                }}
+              >
+                Subscribe to URL
+              </button>
+              <button
+                className={mode === "file" ? "active" : ""}
+                role="tab"
+                aria-selected={mode === "file"}
+                onClick={() => {
+                  setMode("file");
+                  setError("");
+                }}
+              >
+                Upload .ics
+              </button>
+            </div>
+          ) : (
+            <p className="hint">
+              URL subscriptions are not configured on this site. Upload an .ics
+              file instead.
+            </p>
+          )}
 
           <div className="field">
             <label htmlFor="cal-name">Name</label>
@@ -298,25 +288,6 @@ export function CalendarsDialog({ onClose, onError }: CalendarsDialogProps) {
                   private calendars are not supported.
                 </p>
               </div>
-
-              {isStaticDataMode && (
-                <div className="field">
-                  <label htmlFor="cal-proxy">Proxy URL</label>
-                  <input
-                    id="cal-proxy"
-                    className="text-input"
-                    value={proxyUrl}
-                    onChange={(event) => setProxyUrl(event.target.value)}
-                    placeholder="https://your-calendar-proxy.workers.dev/"
-                    spellCheck={false}
-                  />
-                  <p className="hint">
-                    GitHub Pages cannot fetch calendar URLs directly. Deploy the
-                    Cloudflare Worker in <code>workers/calendar-proxy</code> and
-                    paste its URL here.
-                  </p>
-                </div>
-              )}
             </>
           ) : (
             <div className="field">

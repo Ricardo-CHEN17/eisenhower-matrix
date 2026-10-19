@@ -37,6 +37,7 @@ jobs:
         run: npm run build:static
         env:
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
+          VITE_CALENDAR_PROXY_URL: ${{ vars.CALENDAR_PROXY_URL }}
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
